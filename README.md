@@ -52,8 +52,8 @@ export CCCORE_HTTP_PORT=3579
 # WebSocket 服务端口（默认 3578）
 export CCCORE_WS_PORT=3578
 
-# Socket IPC 文件路径（默认 /tmp/cccore.sock）
-export CCCORE_SOCKET_PATH=/tmp/cccore.sock
+# Socket IPC 文件路径（默认 /tmp/cccore_socket 或 \\.\pipe\cccore_socket）
+export CCCORE_SOCKET_PATH=/tmp/cccore_socket
 
 # 服务器主机地址（默认 localhost）
 export CCCORE_HOST=localhost
@@ -245,7 +245,7 @@ Content-Type: application/json
 
 ### Socket IPC 服务
 
-路径：`/tmp/cccore.sock`（可通过环境变量配置）
+路径：`/tmp/cccore_socket 或 \\.\pipe\cccore_socket`（可通过环境变量配置）
 
 命令格式（JSON 逐行发送）：
 
@@ -347,7 +347,7 @@ echo '{"url": "https://example.com", "activate": true}' | \
 ### 无法连接到守护进程
 
 1. 检查守护进程是否运行：`ps aux | grep daemon.js`
-2. 检查 Socket 文件是否存在：`ls /tmp/cccore.sock`
+2. 检查 Socket 文件是否存在：`ls /tmp/cccore_socket 或 \\.\pipe\cccore_socket`
 3. 检查日志文件：`tail -f logs/daemon.log`
 
 ### Extension 无法连接
