@@ -28,13 +28,13 @@ class CCCoreDaemon {
 
     // 初始化日志管理器
     this.managers.loggerManager = new LoggerManager(this.config);
-    await new Promise((resolve) => setTimeout(resolve, 100)); // 等待初始化完成
+    await this.managers.loggerManager.init();
 
     // 初始化浏览器管理器
     this.managers.browserManager = new BrowserManager(this.config);
 
     // 初始化 WebSocket 管理器
-    this.managers.wsManager = new WSManager(this.config);
+    this.managers.wsManager = new WSManager(this.config, this.managers);
 
     // 初始化提醒管理器（依赖 WebSocket 管理器）
     this.managers.reminderManager = new ReminderManager(this.config, this.managers.wsManager);
@@ -45,28 +45,27 @@ class CCCoreDaemon {
   /**
    * 启动所有服务
    */
-  startServices() {
+  async startServices() {
     console.log('[CCCoreDaemon] 启动服务...');
 
-    // 启动 WebSocket 服务
-    this.managers.wsManager.start();
+    const httpServer = new Server(this.config, this.managers);
+    const socketHandler = new SocketHandler(this.config, this.managers);
+
+    const startUpTasks = [
+      this.managers.wsManager.start(),
+      httpServer.start(),
+      socketHandler.start(),
+    ];
+    await Promise.all(startUpTasks);
+
     this.managers.wsManager.startHeartbeat();
     this.servers.push(this.managers.wsManager);
-
-    // 启动 HTTP 服务
-    const httpServer = new Server(this.config, this.managers);
-    httpServer.start();
     this.servers.push(httpServer);
-
-    // 启动 Socket IPC 服务
-    const socketHandler = new SocketHandler(this.config, this.managers);
-    socketHandler.start();
     this.servers.push(socketHandler);
 
     console.log('[CCCoreDaemon] 所有服务已启动');
     this.printStartupInfo();
   }
-
   /**
    * 打印启动信息
    */
@@ -74,7 +73,7 @@ class CCCoreDaemon {
     console.log('\n' + '='.repeat(50));
     console.log('  Claude Code Core 守护进程已启动');
     console.log('='.repeat(50));
-    console.log(`HTTP 服务：      http://${this.config.server.host}:${this.config.server.httpPort}`);
+    console.log(`HTTP 服务：       http://${this.config.server.host}:${this.config.server.httpPort}`);
     console.log(`WebSocket 服务：  ws://${this.config.server.host}:${this.config.server.wsPort}`);
     console.log(`Socket IPC：      ${this.config.server.socketPath}`);
     console.log(`日志目录：        ${this.config.logger.logDir}`);
@@ -106,14 +105,13 @@ class CCCoreDaemon {
     console.log('[Claude Code Core] 已关闭');
     process.exit(0);
   }
-
   /**
    * 启动守护进程
    */
   async start() {
     try {
       await this.initManagers();
-      this.startServices();
+      await this.startServices();
 
       // 信号处理
       process.on('SIGTERM', () => this.shutdown());

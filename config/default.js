@@ -4,6 +4,7 @@
 
 const path = require('path');
 const os = require('os');
+const { cccoreSocket } = require("../lib/utils");
 
 module.exports = {
   // 服务配置
@@ -16,7 +17,7 @@ module.exports = {
     wsPort: process.env.CCCORE_WS_PORT || 3578,
 
     // Socket IPC 文件路径
-    socketPath: process.env.CCCORE_SOCKET_PATH || path.join(os.tmpdir(), 'cccore.sock'),
+    socketPath: process.env.CCCORE_SOCKET_PATH || cccoreSocket(),
 
     // 主机地址
     host: process.env.CCCORE_HOST || 'localhost',
