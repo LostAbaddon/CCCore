@@ -1,0 +1,26 @@
+{
+  "name": "cc-core",
+  "version": "1.0.0",
+  "description": "Claude Code Core - Daemon process for managing logs, reminders, and browser integration",
+  "main": "bin/daemon.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bin/daemon.js",
+    "client": "node bin/client.js",
+    "dev": "NODE_ENV=development node bin/daemon.js"
+  },
+  "keywords": [
+    "daemon",
+    "logger",
+    "reminder",
+    "chrome"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
