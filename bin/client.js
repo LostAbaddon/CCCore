@@ -11,6 +11,44 @@ const { cccoreSocket, formatLogEntry } = require("../lib/utils");
 const socketPath = process.env.CCCORE_SOCKET_PATH || cccoreSocket();
 
 /**
+ * Parse named arguments in the format --name=value
+ * Supports spaces in values until the next --xxx= pattern
+ * @param {Array} args - Array of command line arguments
+ * @returns {Object} - Parsed arguments as key-value pairs
+ */
+function parseNamedArgs(args) {
+	const result = {};
+	let currentKey = null;
+	let currentValue = [];
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		const match = arg.match(/^--([^=]+)=([\w\W]*)$/);
+
+		if (match) {
+			// Save previous key-value pair if exists
+			if (currentKey !== null) {
+				result[currentKey] = currentValue.join(' ').trim();
+			}
+
+			// Start new key-value pair
+			currentKey = match[1];
+			currentValue = [match[2]];
+		}
+		else if (currentKey !== null) {
+			// Continue accumulating value for current key
+			currentValue.push(arg);
+		}
+	}
+
+	// Save the last key-value pair
+	if (currentKey !== null) {
+		result[currentKey] = currentValue.join(' ').trim();
+	}
+
+	return result;
+}
+/**
  * 发送命令到守护进程
  */
 function sendCommand(command) {
@@ -55,7 +93,7 @@ async function main() {
 		console.log('  ping                 - 检查守护进程是否运行');
 		console.log('  add-log              - 添加日志（从标准输入读取 JSON）');
 		console.log('  get-logs [limit]     - 获取日志（默认 5 条）');
-		console.log('  create-reminder      - 创建提醒（从标准输入读取 JSON）');
+		console.log('  add-reminder         - 创建提醒（从标准输入读取 JSON）');
 		console.log('  open-page            - 打开网页（从标准输入读取 JSON）');
 		process.exit(1);
 	}
@@ -92,25 +130,52 @@ async function main() {
 					data: { limit },
 				});
 				if (result?.message?.logs && result?.message?.logs?.length > 0) {
-					console.log(`获取到 ${result?.message?.count || 0} 条日志:`);
-					console.log('');
+					const list = [];
+					list.push(`获取到 ${result?.message?.count || 0} 条日志:`);
+					list.push('');
 					const records = result.message.logs.map(item => formatLogEntry(item)).join('\n\n');
-					console.log(records);
-					console.log('');
+					list.push(records);
+					list.push('');
+					result = list.join('\n');
 				}
 				else {
-					console.log('暂无日志记录');
+					result = '暂无日志记录';
 				}
-				process.exit(1);
 				break;
 			}
 
-			case 'create-reminder': {
-				const reminderData = await readStdin();
-				const reminder = JSON.parse(reminderData);
+			case 'add-reminder': {
+				const reminderData = parseNamedArgs(args);
+				let time = reminderData.time || reminderData.timestamp;
+				const relativeMatch = time.match(/^in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)$/i);
+				let triggerTime;
+				if (relativeMatch) {
+					const amount = parseInt(relativeMatch[1]);
+					const unit = relativeMatch[2].toLowerCase();
+					const now = Date.now();
+
+					if (unit.startsWith('second')) triggerTime = now + amount * 1000;
+					else if (unit.startsWith('minute')) triggerTime = now + amount * 60 * 1000;
+					else if (unit.startsWith('hour')) triggerTime = now + amount * 60 * 60 * 1000;
+					else if (unit.startsWith('day')) triggerTime = now + amount * 24 * 60 * 60 * 1000;
+					else if (unit.startsWith('week')) triggerTime = now + amount * 7 * 24 * 60 * 60 * 1000;
+					else if (unit.startsWith('month')) triggerTime = now + amount * 30 * 24 * 60 * 60 * 1000;
+					else if (unit.startsWith('year')) triggerTime = now + amount * 365 * 24 * 60 * 60 * 1000;
+				}
+				else {
+					triggerTime = new Date(time).getTime();
+				}
+				if (isNaN(triggerTime)) {
+					throw new Error(`Error: Invalid time format "${time}". Use ISO datetime or relative time (e.g., "in 10 seconds", "in 30 minutes", "in 2 hours", "in 1 day", "in 2 weeks", "in 1 month", "in 1 year")`);
+				}
+
 				result = await sendCommand({
 					action: 'CREATE_REMINDER',
-					data: reminder,
+					data: {
+						title: reminderData.title,
+						message: reminderData.message,
+						triggerTime,
+					},
 				});
 				console.log(result);
 				break;

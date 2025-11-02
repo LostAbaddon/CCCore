@@ -287,7 +287,7 @@ echo '{"url": "https://example.com", "activate": true}' | \
 
 - **LoggerManager**: 日志缓冲和文件管理
 - **BrowserManager**: Chrome 进程检查
-- **ReminderManager**: 提醒转发
+- **ExtensionManager**: 提醒转发
 - **WSManager**: WebSocket 通讯管理
 - **Server**: HTTP 服务器
 - **SocketHandler**: Socket IPC 服务器
@@ -305,7 +305,7 @@ echo '{"url": "https://example.com", "activate": true}' | \
 │     CCCore              │
 ├─────────────────────────┤
 │ • LoggerManager         │
-│ • ReminderManager       │
+│ • ExtensionManager      │
 │ • WSManager             │
 └────────────┬────────────┘
              │ WebSocket

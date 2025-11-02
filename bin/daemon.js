@@ -8,7 +8,7 @@
 const config = require('../config/default');
 const LoggerManager = require('../lib/logger-manager');
 const BrowserManager = require('../lib/browser-manager');
-const ReminderManager = require('../lib/reminder-manager');
+const ExtensionManager = require('../lib/extension-manager');
 const WSManager = require('../lib/ws-manager');
 const Server = require('../lib/server');
 const SocketHandler = require('../lib/socket-handler');
@@ -37,7 +37,7 @@ class CCCoreDaemon {
     this.managers.wsManager = new WSManager(this.config, this.managers);
 
     // 初始化提醒管理器（依赖 WebSocket 管理器）
-    this.managers.reminderManager = new ReminderManager(this.config, this.managers.wsManager);
+    this.managers.extManager = new ExtensionManager(this.config, this.managers.wsManager);
 
     console.log('[CCCoreDaemon] 管理器初始化完成');
   }
