@@ -90,11 +90,14 @@ async function main() {
 	if (args.length === 0) {
 		console.log('用法: cccore-client <command> [options]');
 		console.log('\n命令:');
-		console.log('  ping                 - 检查守护进程是否运行');
-		console.log('  add-log              - 添加日志（从标准输入读取 JSON）');
-		console.log('  get-logs [limit]     - 获取日志（默认 5 条）');
-		console.log('  add-reminder         - 创建提醒（从标准输入读取 JSON）');
-		console.log('  open-page            - 打开网页（从标准输入读取 JSON）');
+		console.log('  ping                    - 检查守护进程是否运行');
+		console.log('  add-log                 - 添加日志（从标准输入读取 JSON）');
+		console.log('  get-logs [limit]        - 获取日志（默认 5 条）');
+		console.log('  add-reminder            - 创建提醒（命名参数：--title, --message, --time）');
+		console.log('  list-reminders          - 列出所有活跃提醒');
+		console.log('  get-reminder <id>       - 获取单个提醒详情');
+		console.log('  cancel-reminder <id>    - 取消指定提醒');
+		console.log('  open-page               - 打开网页（从标准输入读取 JSON）');
 		process.exit(1);
 	}
 	const command = args.shift();
@@ -181,6 +184,59 @@ async function main() {
 				break;
 			}
 
+			case 'list-reminders': {
+				result = await sendCommand({
+					action: 'GET_REMINDERS',
+				});
+				if (result?.ok && result?.data?.reminders?.length > 0) {
+					const list = [];
+					list.push(`\n活跃提醒列表 (${result.data.count} 条):\n`);
+					const records = result.data.reminders.map((reminder, index) => {
+						const date = new Date(reminder.triggerTime);
+						const hours = Math.floor(reminder.timeLeft / (60 * 60 * 1000));
+						const minutes = Math.floor((reminder.timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+						return `[${index + 1}] ${reminder.title}\n      ID: ${reminder.id}\n      消息: ${reminder.message}\n      时间: ${date.toLocaleString()}\n      剩余: ${hours}h ${minutes}m`;
+					}).join('\n\n');
+					list.push(records);
+					list.push('');
+					result = list.join('\n');
+				} else if (result?.ok) {
+					result = '暂无活跃提醒';
+				}
+				break;
+			}
+
+			case 'get-reminder': {
+				const reminderId = param[0];
+				if (!reminderId) {
+					throw new Error('缺少提醒 ID');
+				}
+				result = await sendCommand({
+					action: 'GET_REMINDER',
+					data: { id: reminderId },
+				});
+				if (result?.ok && result?.data) {
+					const reminder = result.data;
+					const date = new Date(reminder.triggerTime);
+					const hours = Math.floor(reminder.timeLeft / (60 * 60 * 1000));
+					const minutes = Math.floor((reminder.timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+					result = `\n提醒详情:\n  标题: ${reminder.title}\n  ID: ${reminder.id}\n  消息: ${reminder.message}\n  时间: ${date.toLocaleString()}\n  剩余: ${hours}h ${minutes}m\n  状态: ${reminder.isExpired ? '已过期' : '活跃'}\n`;
+				}
+				break;
+			}
+
+			case 'cancel-reminder': {
+				const reminderId = param[0];
+				if (!reminderId) {
+					throw new Error('缺少提醒 ID');
+				}
+				result = await sendCommand({
+					action: 'CANCEL_REMINDER',
+					data: { id: reminderId },
+				});
+				break;
+			}
+
 			case 'open-page': {
 				const pageData = await readStdin();
 				const options = JSON.parse(pageData);
@@ -205,8 +261,11 @@ async function main() {
 			else if (result.message) {
 				console.log('反馈:', result.message);
 			}
+			else if (typeof result === 'string') {
+				console.log(result);
+			}
 		}
-		process.exit(1);
+		process.exit(0);
 	}
 	catch (error) {
 		console.error(`错误: ${error.message}`);

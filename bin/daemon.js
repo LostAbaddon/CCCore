@@ -8,6 +8,7 @@
 const config = require('../config/default');
 const LoggerManager = require('../lib/logger-manager');
 const BrowserManager = require('../lib/browser-manager');
+const ReminderManager = require('../lib/reminder-manager');
 const ExtensionManager = require('../lib/extension-manager');
 const WSManager = require('../lib/ws-manager');
 const Server = require('../lib/server');
@@ -37,7 +38,10 @@ class CCCoreDaemon {
     this.managers.wsManager = new WSManager(this.config, this.managers);
 
     // 初始化提醒管理器（依赖 WebSocket 管理器）
-    this.managers.extManager = new ExtensionManager(this.config, this.managers.wsManager);
+    this.managers.reminderManager = new ReminderManager(this.config, this.managers.wsManager);
+
+    // 初始化扩展管理器（依赖 WebSocket 和提醒管理器）
+    this.managers.extManager = new ExtensionManager(this.config, this.managers.wsManager, this.managers.reminderManager);
 
     console.log('[CCCoreDaemon] 管理器初始化完成');
   }
@@ -95,6 +99,11 @@ class CCCoreDaemon {
       } catch (error) {
         console.error('[CCCoreDaemon] 关闭服务失败:', error.message);
       }
+    }
+
+    // 关闭提醒管理器
+    if (this.managers.reminderManager) {
+      this.managers.reminderManager.destroy();
     }
 
     // 关闭日志管理器
