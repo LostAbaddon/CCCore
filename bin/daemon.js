@@ -10,6 +10,7 @@ const LoggerManager = require('../lib/logger-manager');
 const BrowserManager = require('../lib/browser-manager');
 const ReminderManager = require('../lib/reminder-manager');
 const ExtensionManager = require('../lib/extension-manager');
+const ConfigManager = require('../lib/config-manager');
 const WSManager = require('../lib/ws-manager');
 const Server = require('../lib/server');
 const SocketHandler = require('../lib/socket-handler');
@@ -30,6 +31,10 @@ class CCCoreDaemon {
     // 初始化日志管理器
     this.managers.loggerManager = new LoggerManager(this.config);
     await this.managers.loggerManager.init();
+
+    // 初始化配置管理器
+    this.managers.configManager = new ConfigManager(this.config);
+    await this.managers.configManager.init();
 
     // 初始化浏览器管理器
     this.managers.browserManager = new BrowserManager(this.config);
