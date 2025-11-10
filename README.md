@@ -3,7 +3,7 @@
 - 版本：1.1.0
 - 作者：[LostAbaddon](lostabaddon@gmail.com)
 
-CCCore，一个为 Claude Code 提供统一的日志管理、提醒转发和浏览器集成服务的 Node.js 项目。
+CCCore 是一个为 Claude Code 提供统一的日志管理、提醒管理和浏览器集成服务的 Node.js 守护进程项目。
 
 ## 相关项目
 
@@ -11,10 +11,15 @@ CCCore，一个为 Claude Code 提供统一的日志管理、提醒转发和浏�
 
 ## 功能概览
 
-- **日志管理**：接收、缓冲和管理日志记录
-- **提醒转发**：将提醒转发给 CCExtension (Chrome 插件)
+- **日志管理**：接收、缓冲和管理日志记录，按日期存储日志文件
+- **提醒管理**：
+  - 创建、查询、取消提醒
+  - 持久化存储提醒数据
+  - 自动清理过期提醒
+  - 将提醒转发给 CCExtension (Chrome 插件)
+- **配置管理**：管理应用配置（如 stop-reminder 配置）
 - **网页控制**：通过 CCExtension 打开网页并激活标签页
-- **页面跟踪**：跟踪浏览器中的页面变化
+- **工具事件转发**：接收来自 HeadlessKnight 的工具使用事件并转发给 CCExtension
 
 ## 启动
 
@@ -118,7 +123,7 @@ GET /api/logs?limit=5
 响应：
 ```json
 {
-  "success": true,
+  "ok": true,
   "logs": [
     {
       "source": "Claude Code",
@@ -150,7 +155,7 @@ Content-Type: application/json
 响应：
 ```json
 {
-  "success": true,
+  "ok": true,
   "message": "日志已添加"
 }
 ```
@@ -171,17 +176,93 @@ Content-Type: application/json
 响应（成功，Extension 已连接）：
 ```json
 {
-  "success": true,
-  "data": { "status": "sent" }
+  "ok": true,
+  "data": {
+    "status": "sent",
+    "reminderId": "reminder_1234567890_abc123"
+  }
 }
 ```
 
-响应（失败，需要降级）：
+响应（成功，Extension 未连接，已保存到本地）：
 ```json
 {
-  "success": false,
-  "error": "CCExtension 未连接",
+  "ok": true,
+  "data": {
+    "status": "saved",
+    "reminderId": "reminder_1234567890_abc123"
+  },
   "fallback": true
+}
+```
+
+响应（失败）：
+```json
+{
+  "ok": false,
+  "error": "错误信息"
+}
+```
+
+#### 获取所有活跃提醒
+
+```
+GET /api/reminders
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "data": {
+    "reminders": [
+      {
+        "id": "reminder_1234567890_abc123",
+        "title": "提醒标题",
+        "message": "提醒内容",
+        "triggerTime": 1698668445000,
+        "created": 1698668400000,
+        "timeLeft": 45000
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+#### 获取单个提醒
+
+```
+GET /api/reminder/:id
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "reminder_1234567890_abc123",
+    "title": "提醒标题",
+    "message": "提醒内容",
+    "triggerTime": 1698668445000,
+    "created": 1698668400000,
+    "timeLeft": 45000,
+    "isExpired": false
+  }
+}
+```
+
+#### 取消提醒
+
+```
+DELETE /api/reminder/:id
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "message": "提醒 \"reminder_1234567890_abc123\" 已取消"
 }
 ```
 
@@ -194,6 +275,76 @@ Content-Type: application/json
 {
   "url": "https://example.com",
   "activate": true
+}
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "data": { ... }
+}
+```
+
+#### 获取 stop-reminder 配置
+
+```
+GET /api/config/stop-reminder
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "data": {
+    "enabled": true,
+    "delay": 30000
+  }
+}
+```
+
+#### 设置 stop-reminder 配置
+
+```
+POST /api/config/stop-reminder
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "delay": 30000
+}
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "data": {
+    "enabled": true,
+    "delay": 30000
+  }
+}
+```
+
+#### 提交工具事件
+
+```
+POST /api/tool-event
+Content-Type: application/json
+
+{
+  "sessionId": "session_123",
+  "toolName": "Read",
+  "eventType": "start",
+  "timestamp": 1698668445000
+}
+```
+
+响应：
+```json
+{
+  "ok": true,
+  "message": "事件已接收"
 }
 ```
 
@@ -230,9 +381,11 @@ Content-Type: application/json
   "messageId": "msg_123",
   "action": "CREATE_NOTIFICATION",
   "data": {
+    "id": "reminder_1234567890_abc123",
     "title": "提醒标题",
     "message": "提醒内容",
-    "triggerTime": 1698668445000
+    "triggerTime": 1698668445000,
+    "created": 1698668400000
   }
 }
 ```
@@ -246,6 +399,14 @@ Content-Type: application/json
 }
 ```
 
+**支持的 action 类型**：
+- `CREATE_NOTIFICATION`: 创建提醒
+- `CANCEL_NOTIFICATION`: 取消提醒
+- `OPEN_PAGE`: 打开网页
+- `REMINDER_LIST_UPDATE`: 提醒列表更新通知（单向，无需响应）
+- `STOP_REMINDER_CONFIG_UPDATE`: stop-reminder 配置更新通知（单向，无需响应）
+- `TOOL_EVENT`: 工具使用事件（单向，无需响应）
+
 ### Socket IPC 服务
 
 路径：`/tmp/cccore_socket 或 \\.\pipe\cccore_socket`（可通过环境变量配置）
@@ -257,6 +418,9 @@ Content-Type: application/json
 {"action": "ADD_LOG", "data": {"source": "Claude Code", "content": "...", ...}}
 {"action": "GET_LOGS", "data": {"limit": 5}}
 {"action": "CREATE_REMINDER", "data": {"title": "...", "message": "...", "triggerTime": ...}}
+{"action": "GET_REMINDERS"}
+{"action": "GET_REMINDER", "data": {"id": "reminder_id"}}
+{"action": "CANCEL_REMINDER", "data": {"id": "reminder_id"}}
 {"action": "OPEN_PAGE", "data": {"url": "...", "activate": true}}
 ```
 
@@ -268,16 +432,24 @@ Content-Type: application/json
 # 检查守护进程
 node bin/client.js ping
 
+# 添加日志
+node bin/client.js add-log "这是一条日志消息"
+
 # 获取日志
 node bin/client.js get-logs 10
 
-# 添加日志
-echo '{"source": "Claude Code", "cwd": "/path/to/cwd", "sessionId": "session_123", "content": "..."}' | \
-  node bin/client.js add-log
+# 创建提醒（支持命名参数）
+node bin/client.js add-reminder --title="会议提醒" --message="参加团队会议" --time="in 30 minutes"
+node bin/client.js add-reminder --title="任务提醒" --message="完成报告" --time="2025-11-10T15:00:00"
 
-# 创建提醒
-echo '{"title": "提醒", "message": "内容", "triggerTime": 1698668445000}' | \
-  node bin/client.js create-reminder
+# 列出所有活跃提醒
+node bin/client.js list-reminders
+
+# 获取单个提醒详情
+node bin/client.js get-reminder reminder_1234567890_abc123
+
+# 取消提醒
+node bin/client.js cancel-reminder reminder_1234567890_abc123
 
 # 打开网页
 echo '{"url": "https://example.com", "activate": true}' | \
@@ -289,8 +461,10 @@ echo '{"url": "https://example.com", "activate": true}' | \
 ### 组件
 
 - **LoggerManager**: 日志缓冲和文件管理
+- **ConfigManager**: 应用配置管理和持久化
 - **BrowserManager**: Chrome 进程检查
-- **ExtensionManager**: 提醒转发
+- **ReminderManager**: 提醒的存储、生命周期管理和过期清理
+- **ExtensionManager**: 提醒转发和网页控制
 - **WSManager**: WebSocket 通讯管理
 - **Server**: HTTP 服务器
 - **SocketHandler**: Socket IPC 服务器
@@ -298,36 +472,50 @@ echo '{"url": "https://example.com", "activate": true}' | \
 ### 数据流
 
 ```
-┌─────────────┐
-│ DailyReport │
-│   Skill     │
-└──────┬──────┘
-       │ HTTP/Socket
-       ▼
-┌─────────────────────────┐
-│     CCCore              │
-├─────────────────────────┤
-│ • LoggerManager         │
-│ • ExtensionManager      │
-│ • WSManager             │
-└────────────┬────────────┘
+┌──────────────┐     ┌───────────────┐
+│ DailyReport  │     │ HeadlessKnight│
+│   Skill      │     │    Plugin     │
+└──────┬───────┘     └──────┬────────┘
+       │ HTTP/Socket        │ HTTP
+       ▼                    ▼
+┌──────────────────────────────────┐
+│           CCCore                 │
+├──────────────────────────────────┤
+│ • LoggerManager                  │
+│ • ConfigManager                  │
+│ • ReminderManager                │
+│ • ExtensionManager               │
+│ • WSManager                      │
+│ • Server (HTTP)                  │
+│ • SocketHandler (IPC)            │
+└────────────┬─────────────────────┘
              │ WebSocket
              ▼
-┌─────────────────────────┐
-│    CCExtension          │
-│  (Chrome Plugin)        │
-├─────────────────────────┤
-│ • Notification API      │
-│ • Page Tracking         │
-└─────────────────────────┘
+┌──────────────────────────────────┐
+│        CCExtension               │
+│      (Chrome Plugin)             │
+├──────────────────────────────────┤
+│ • Notification API               │
+│ • Page Tracking                  │
+│ • Stop Reminder                  │
+└──────────────────────────────────┘
 ```
+
+### 数据持久化
+
+- **日志文件**: `~/action-logger/YYYY-MM-DD.log`
+- **提醒数据**: `~/.cccore-reminders/reminders.json`
+- **应用配置**: `~/.cccore/config.json`
 
 ## 容错机制
 
 1. **日志写入失败**: 缓冲区继续接受新日志，后续刷盘时重试
-2. **Extension 未连接**: 提醒请求返回 `fallback: true`，客户端可选择降级方案
+2. **Extension 未连接**:
+   - 提醒仍会保存到本地，返回 `fallback: true`
+   - Extension 连接后会同步提醒列表
 3. **WebSocket 超时**: 自动清理超时连接，释放资源
-4. **Chrome 进程不存在**: 拒绝发送提醒/打开网页请求
+4. **过期提醒清理**: 每分钟自动清理过期的提醒
+5. **提醒持久化**: 提醒数据保存到磁盘，守护进程重启后恢复
 
 ## 日志文件格式
 
@@ -350,14 +538,19 @@ echo '{"url": "https://example.com", "activate": true}' | \
 ### 无法连接到守护进程
 
 1. 检查守护进程是否运行：`ps aux | grep daemon.js`
-2. 检查 Socket 文件是否存在：`ls /tmp/cccore_socket 或 \\.\pipe\cccore_socket`
-3. 检查日志文件：`tail -f logs/daemon.log`
+2. 检查 Socket 文件是否存在：
+   - macOS/Linux: `ls /tmp/cccore_socket`
+   - Windows: 检查命名管道 `\\.\pipe\cccore_socket`
+3. 尝试重启守护进程：`npm start`
 
 ### Extension 无法连接
 
-1. 检查 WebSocket 服务是否在运行：`netstat -an | grep 3578`
+1. 检查 WebSocket 服务是否在运行：
+   - macOS/Linux: `netstat -an | grep 3578`
+   - Windows: `netstat -an | findstr 3578`
 2. 检查浏览器控制台错误
-3. 确保 Extension 的 `manifest.json` 中 WebSocket 连接地址正确
+3. 确保 Extension 的 WebSocket 连接地址正确
+4. 检查防火墙设置
 
 ### 日志丢失
 
@@ -365,19 +558,49 @@ echo '{"url": "https://example.com", "activate": true}' | \
 2. 检查磁盘空间是否充足
 3. 查看是否有文件权限问题
 
+### 提醒未触发
+
+1. 确认 CCExtension 已连接到 CCCore
+2. 检查提醒时间是否正确设置
+3. 查看 `~/.cccore-reminders/reminders.json` 确认提醒已保存
+4. 检查浏览器通知权限设置
+
 ## 开发
 
-### 启用开发模式日志
+### 启用开发模式
 
 ```bash
 NODE_ENV=development npm start
 ```
 
-会在 `lib/reminder-server.log` 中记录详细日志。
+开发模式下会输出更详细的日志信息。
 
 ### 依赖项
 
-- `ws`: WebSocket 服务器库
+- `ws`: WebSocket 服务器库（用于与 CCExtension 通信）
+
+### 项目结构
+
+```
+CCCore/
+├── bin/
+│   ├── daemon.js            # 守护进程主入口
+│   └── client.js            # 命令行客户端
+├── lib/
+│   ├── logger-manager.js    # 日志管理器
+│   ├── config-manager.js    # 配置管理器
+│   ├── reminder-manager.js  # 提醒管理器
+│   ├── extension-manager.js # Extension 管理器
+│   ├── ws-manager.js        # WebSocket 管理器
+│   ├── browser-manager.js   # 浏览器进程管理器
+│   ├── server.js            # HTTP 服务器
+│   ├── socket-handler.js    # Socket IPC 处理器
+│   └── utils.js             # 工具函数
+├── config/
+│   └── default.js           # 默认配置
+├── package.json
+└── README.md
+```
 
 ## 许可证
 
