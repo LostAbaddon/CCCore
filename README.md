@@ -1,6 +1,6 @@
 # CCCore - Claude Code 核心系统
 
-- 版本：1.1.2
+- 版本：1.1.3
 - 作者：[LostAbaddon](lostabaddon@gmail.com)
 
 CCCore 是一个为 Claude Code 提供统一的日志管理、提醒管理和浏览器集成服务的 Node.js 守护进程项目。
