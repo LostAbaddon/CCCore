@@ -1,6 +1,6 @@
 {
   "name": "cc-core",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Claude Code Core - Daemon process for managing logs, reminders, and browser integration",
   "main": "bin/daemon.js",
   "type": "commonjs",
