@@ -43,7 +43,7 @@ class CCCoreDaemon {
     this.managers.wsManager = new WSManager(this.config, this.managers);
 
     // 初始化提醒管理器（依赖 WebSocket 管理器）
-    this.managers.reminderManager = new ReminderManager(this.config, this.managers.wsManager);
+    this.managers.reminderManager = new ReminderManager(this.config, this.managers);
 
     // 初始化扩展管理器（依赖 WebSocket 和提醒管理器）
     this.managers.extManager = new ExtensionManager(this.config, this.managers.wsManager, this.managers.reminderManager);
